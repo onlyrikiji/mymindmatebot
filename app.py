@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -18,14 +19,25 @@ def get_most_similar_response(df, query, top_k=1):
 
     # Step 4: Sort and Pick Top k Responses
     sorted_indexes = similarity_scores.argsort()[0][-top_k:]
-    
+
     # Fetch the corresponding responses from the DataFrame
     most_similar_responses = df.iloc[sorted_indexes]['response'].values
     return most_similar_responses
 
-# Load data from a CSV file
-csv_file = '/workspaces/mindbot/new_mental_health_dataset.csv'
-df = pd.read_csv(csv_file)
+# Get the path to the current directory
+path = os.path.dirname(__file__)
+
+# Open the dialogs file and read each line into a list
+file = open(os.path.join(path, "new_mental_health_dataset.csv"))
+data = []
+for line in file.readlines():
+    data.append(line.strip().split("\t"))
+
+# Close the file
+file.close()
+
+# Create a Pandas DataFrame from the data list
+df = pd.DataFrame(data, columns=['user_chat', 'response'])
 
 st.title("MindMate")
 
