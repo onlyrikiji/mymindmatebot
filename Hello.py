@@ -24,7 +24,7 @@ def get_most_similar_response(df, query, top_k=1):
     return most_similar_responses
 
 # Load data from a CSV file
-csv_file = '/workspaces/mindbot/mental_health_dataset.csv'
+csv_file = '/workspaces/mindbot/new_mental_health_dataset.csv'
 df = pd.read_csv(csv_file)
 
 st.title("MindMate")
