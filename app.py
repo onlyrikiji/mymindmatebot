@@ -27,11 +27,15 @@ def get_most_similar_response(df, query, top_k=1):
 # Get the path to the current directory
 path = os.path.dirname(__file__)
 
-# Open the dialogs file and read each line into a list
-file = open(os.path.join(path, "new_mental_health_dataset.txt"))
+# Open the specific text file and read each line into a list
+file_path = os.path.join(path, "new_mental_health_dataset.txt")
+file = open(file_path)
 data = []
+
 for line in file.readlines():
-    data.append(line.strip().split(","))
+    # Split each line by tab ("\t") and remove double quotes
+    parts = [part.strip('"\n') for part in line.split("\t")]
+    data.append(parts)
 
 # Close the file
 file.close()
@@ -63,7 +67,7 @@ if prompt := st.chat_input("Say Hi!"):
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
         for response in responses:
-            st.markdown(f" {response}")
+            st.markdown(f"{response}")
 
     # Add assistant response to chat history
     for response in responses:
