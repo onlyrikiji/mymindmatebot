@@ -1,51 +1,58 @@
-# Copyright (c) Streamlit Inc. (2018-2022) Snowflake Inc. (2022)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import streamlit as st
-from streamlit.logger import get_logger
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-LOGGER = get_logger(__name__)
+def get_most_similar_response(df, query, top_k=1):
+    # Step 1: Prepare Data
+    vectorizer = TfidfVectorizer()
+    all_data = list(df['user_chat']) + [query]
 
+    # Step 2: TF-IDF Vectorization
+    tfidf_matrix = vectorizer.fit_transform(all_data)
 
-def run():
-    st.set_page_config(
-        page_title="Hello",
-        page_icon="👋",
-    )
+    # Step 3: Compute Similarity
+    document_vectors = tfidf_matrix[:-1]
+    query_vector = tfidf_matrix[-1]
+    similarity_scores = cosine_similarity(query_vector, document_vectors)
 
-    st.write("# Welcome to Streamlit! 👋")
+    # Step 4: Sort and Pick Top k Responses
+    sorted_indexes = similarity_scores.argsort()[0][-top_k:]
+    
+    # Fetch the corresponding responses from the DataFrame
+    most_similar_responses = df.iloc[sorted_indexes]['response'].values
+    return most_similar_responses
 
-    st.sidebar.success("Select a demo above.")
+# Load data from a CSV file
+csv_file = '/workspaces/mindbot/mental_health_dataset.csv'
+df = pd.read_csv(csv_file)
 
-    st.markdown(
-        """
-        Streamlit is an open-source app framework built specifically for
-        Machine Learning and Data Science projects.
-        **👈 Select a demo from the sidebar** to see some examples
-        of what Streamlit can do!
-        ### Want to learn more?
-        - Check out [streamlit.io](https://streamlit.io)
-        - Jump into our [documentation](https://docs.streamlit.io)
-        - Ask a question in our [community
-          forums](https://discuss.streamlit.io)
-        ### See more complex demos
-        - Use a neural net to [analyze the Udacity Self-driving Car Image
-          Dataset](https://github.com/streamlit/demo-self-driving)
-        - Explore a [New York City rideshare dataset](https://github.com/streamlit/demo-uber-nyc-pickups)
-    """
-    )
+st.title("MindMate")
 
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-if __name__ == "__main__":
-    run()
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# React to user input
+if prompt := st.chat_input("Say Hi!"):
+    # Display user message in chat message container
+    st.chat_message("user").markdown(prompt)
+
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    responses = get_most_similar_response(df, prompt)
+
+    # Display assistant response in chat message container
+    with st.chat_message("assistant"):
+        for response in responses:
+            st.markdown(f" {response}")
+
+    # Add assistant response to chat history
+    for response in responses:
+        st.session_state.messages.append({"role": "assistant", "content": f"Echo: {response}"})
