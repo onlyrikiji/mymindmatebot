@@ -28,7 +28,7 @@ def get_most_similar_response(df, query, top_k=1):
 path = os.path.dirname(__file__)
 
 # Open the dialogs file and read each line into a list
-file = open(os.path.join(path, "new_mental_health_dataset.csv"))
+file = open(os.path.join(path, "new_mental_health_dataset.txt"))
 data = []
 for line in file.readlines():
     data.append(line.strip().split("\t"))
