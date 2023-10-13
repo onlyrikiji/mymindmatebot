@@ -71,4 +71,4 @@ if prompt := st.chat_input("Say Hi!"):
 
     # Add assistant response to chat history
     for response in responses:
-        st.session_state.messages.append({"role": "assistant", "content": f"Echo: {response}"})
+        st.session_state.messages.append({"role": "assistant", "content": response})
