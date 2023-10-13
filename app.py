@@ -31,7 +31,7 @@ path = os.path.dirname(__file__)
 file = open(os.path.join(path, "new_mental_health_dataset.txt"))
 data = []
 for line in file.readlines():
-    data.append(line.strip().split("\t"))
+    data.append(line.strip().split(","))
 
 # Close the file
 file.close()
