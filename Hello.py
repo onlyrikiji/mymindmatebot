@@ -1,74 +1,90 @@
 import os
+import tempfile
 import streamlit as st
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from streamlit_chat import message
+from pdfquery import PDFQuery
 
-def get_most_similar_response(df, query, top_k=1):
-    # Step 1: Prepare Data
-    vectorizer = TfidfVectorizer()
-    all_data = list(df['user_chat']) + [query]
+st.set_page_config(page_title="ChatPDF")
 
-    # Step 2: TF-IDF Vectorization
-    tfidf_matrix = vectorizer.fit_transform(all_data)
 
-    # Step 3: Compute Similarity
-    document_vectors = tfidf_matrix[:-1]
-    query_vector = tfidf_matrix[-1]
-    similarity_scores = cosine_similarity(query_vector, document_vectors)
+def display_messages():
+    st.subheader("Chat")
+    for i, (msg, is_user) in enumerate(st.session_state["messages"]):
+        message(msg, is_user=is_user, key=str(i))
+    st.session_state["thinking_spinner"] = st.empty()
 
-    # Step 4: Sort and Pick Top k Responses
-    sorted_indexes = similarity_scores.argsort()[0][-top_k:]
 
-    # Fetch the corresponding responses from the DataFrame
-    most_similar_responses = df.iloc[sorted_indexes]['response'].values
-    return most_similar_responses
+def process_input():
+    if st.session_state["user_input"] and len(st.session_state["user_input"].strip()) > 0:
+        user_text = st.session_state["user_input"].strip()
+        with st.session_state["thinking_spinner"], st.spinner(f"Thinking"):
+            query_text = st.session_state["pdfquery"].ask(user_text)
 
-# Get the path to the current directory
-path = os.path.dirname(__file__)
+        st.session_state["messages"].append((user_text, True))
+        st.session_state["messages"].append((query_text, False))
 
-# Open the specific text file and read each line into a list
-file_path = os.path.join(path, "new_mental_health_dataset.txt")
-file = open(file_path)
-data = []
 
-for line in file.readlines():
-    # Split each line by tab ("\t") and remove double quotes
-    parts = [part.strip('"\n') for part in line.split("\t")]
-    data.append(parts)
+def read_and_save_file():
+    st.session_state["pdfquery"].forget()  # to reset the knowledge base
+    st.session_state["messages"] = []
+    st.session_state["user_input"] = ""
 
-# Close the file
-file.close()
+    for file in st.session_state["file_uploader"]:
+        with tempfile.NamedTemporaryFile(delete=False) as tf:
+            tf.write(file.getbuffer())
+            file_path = tf.name
 
-# Create a Pandas DataFrame from the data list
-df = pd.DataFrame(data, columns=['user_chat', 'response'])
+        with st.session_state["ingestion_spinner"], st.spinner(f"Ingesting {file.name}"):
+            st.session_state["pdfquery"].ingest(file_path)
+        os.remove(file_path)
 
-st.title("MindMate")
 
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+def is_openai_api_key_set() -> bool:
+    return len(st.session_state["OPENAI_API_KEY"]) > 0
 
-# Display chat messages from history on app rerun
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
 
-# React to user input
-if prompt := st.chat_input("Say Hi!"):
-    # Display user message in chat message container
-    st.chat_message("user").markdown(prompt)
+def main():
+    if len(st.session_state) == 0:
+        st.session_state["messages"] = []
+        st.session_state["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY", "")
+        if is_openai_api_key_set():
+            st.session_state["pdfquery"] = PDFQuery(st.session_state["OPENAI_API_KEY"])
+        else:
+            st.session_state["pdfquery"] = None
 
-    # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.header("ChatPDF")
 
-    responses = get_most_similar_response(df, prompt)
+    if st.text_input("OpenAI API Key", value=st.session_state["OPENAI_API_KEY"], key="input_OPENAI_API_KEY", type="password"):
+        if (
+            len(st.session_state["input_OPENAI_API_KEY"]) > 0
+            and st.session_state["input_OPENAI_API_KEY"] != st.session_state["OPENAI_API_KEY"]
+        ):
+            st.session_state["OPENAI_API_KEY"] = st.session_state["input_OPENAI_API_KEY"]
+            if st.session_state["pdfquery"] is not None:
+                st.warning("Please, upload the files again.")
+            st.session_state["messages"] = []
+            st.session_state["user_input"] = ""
+            st.session_state["pdfquery"] = PDFQuery(st.session_state["OPENAI_API_KEY"])
 
-    # Display assistant response in chat message container
-    with st.chat_message("assistant"):
-        for response in responses:
-            st.markdown(f"{response}")
+    st.subheader("Upload a document")
+    st.file_uploader(
+        "Upload document",
+        type=["pdf"],
+        key="file_uploader",
+        on_change=read_and_save_file,
+        label_visibility="collapsed",
+        accept_multiple_files=True,
+        disabled=not is_openai_api_key_set(),
+    )
 
-    # Add assistant response to chat history
-    for response in responses:
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state["ingestion_spinner"] = st.empty()
+
+    display_messages()
+    st.text_input("Message", key="user_input", disabled=not is_openai_api_key_set(), on_change=process_input)
+
+    st.divider()
+    st.markdown("Source code: [Github](https://github.com/Anil-matcha/ChatPDF)")
+
+
+if __name__ == "__main__":
+    main()
